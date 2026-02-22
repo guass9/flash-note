@@ -753,9 +753,68 @@ def init_sqlite_schema(conn):
     )
 
 
+def drop_sqlite_fts_artifacts(conn):
+    conn.execute("DROP TRIGGER IF EXISTS notes_fts_ai")
+    conn.execute("DROP TRIGGER IF EXISTS notes_fts_ad")
+    conn.execute("DROP TRIGGER IF EXISTS notes_fts_au")
+    conn.execute("DROP TABLE IF EXISTS notes_fts")
+
+
+def create_sqlite_fts_artifacts(conn):
+    conn.execute(
+        """
+        CREATE VIRTUAL TABLE IF NOT EXISTS notes_fts
+        USING fts5(
+            title,
+            content,
+            tags_json,
+            content='notes',
+            content_rowid='rowid'
+        )
+        """
+    )
+    conn.execute(
+        """
+            CREATE TRIGGER IF NOT EXISTS notes_fts_ai
+        AFTER INSERT ON notes
+        BEGIN
+            INSERT INTO notes_fts(rowid, title, content, tags_json)
+            VALUES (new.rowid, new.title, new.content, new.tags_json);
+        END
+        """
+    )
+    conn.execute(
+        """
+        CREATE TRIGGER IF NOT EXISTS notes_fts_ad
+        AFTER DELETE ON notes
+        BEGIN
+            INSERT INTO notes_fts(notes_fts, rowid, title, content, tags_json)
+            VALUES ('delete', old.rowid, old.title, old.content, old.tags_json);
+        END
+        """
+    )
+    conn.execute(
+        """
+        CREATE TRIGGER IF NOT EXISTS notes_fts_au
+        AFTER UPDATE ON notes
+        BEGIN
+            INSERT INTO notes_fts(notes_fts, rowid, title, content, tags_json)
+            VALUES ('delete', old.rowid, old.title, old.content, old.tags_json);
+            INSERT INTO notes_fts(rowid, title, content, tags_json)
+            VALUES (new.rowid, new.title, new.content, new.tags_json);
+        END
+        """
+    )
+
+
+def verify_sqlite_fts_integrity(conn):
+    conn.execute("INSERT INTO notes_fts(notes_fts, rank) VALUES ('integrity-check', 1)")
+
+
 def init_sqlite_fts(conn):
     global SQLITE_FTS_ACTIVE
     if not APP_SQLITE_ENABLE_FTS:
+        drop_sqlite_fts_artifacts(conn)
         SQLITE_FTS_ACTIVE = False
         return
 
@@ -770,65 +829,36 @@ def init_sqlite_fts(conn):
                 columns,
                 expected_columns,
             )
-            conn.execute("DROP TRIGGER IF EXISTS notes_fts_ai")
-            conn.execute("DROP TRIGGER IF EXISTS notes_fts_ad")
-            conn.execute("DROP TRIGGER IF EXISTS notes_fts_au")
-            conn.execute("DROP TABLE IF EXISTS notes_fts")
+            drop_sqlite_fts_artifacts(conn)
 
-        conn.execute(
-            """
-            CREATE VIRTUAL TABLE IF NOT EXISTS notes_fts
-            USING fts5(
-                title,
-                content,
-                tags_json,
-                content='notes',
-                content_rowid='rowid'
-            )
-            """
-        )
-        conn.execute(
-            """
-                CREATE TRIGGER IF NOT EXISTS notes_fts_ai
-            AFTER INSERT ON notes
-            BEGIN
-                INSERT INTO notes_fts(rowid, title, content, tags_json)
-                VALUES (new.rowid, new.title, new.content, new.tags_json);
-            END
-            """
-        )
-        conn.execute(
-            """
-            CREATE TRIGGER IF NOT EXISTS notes_fts_ad
-            AFTER DELETE ON notes
-            BEGIN
-                INSERT INTO notes_fts(notes_fts, rowid, title, content, tags_json)
-                VALUES ('delete', old.rowid, old.title, old.content, old.tags_json);
-            END
-            """
-        )
-        conn.execute(
-            """
-            CREATE TRIGGER IF NOT EXISTS notes_fts_au
-            AFTER UPDATE ON notes
-            BEGIN
-                INSERT INTO notes_fts(notes_fts, rowid, title, content, tags_json)
-                VALUES ('delete', old.rowid, old.title, old.content, old.tags_json);
-                INSERT INTO notes_fts(rowid, title, content, tags_json)
-                VALUES (new.rowid, new.title, new.content, new.tags_json);
-            END
-            """
-        )
+        create_sqlite_fts_artifacts(conn)
 
         note_count = int(conn.execute("SELECT COUNT(1) FROM notes").fetchone()[0])
         fts_count = int(conn.execute("SELECT COUNT(1) FROM notes_fts").fetchone()[0])
         if note_count != fts_count:
             conn.execute("INSERT INTO notes_fts(notes_fts) VALUES ('rebuild')")
             app.logger.info("sqlite_fts_rebuild done notes=%s fts_rows=%s", note_count, fts_count)
+        try:
+            verify_sqlite_fts_integrity(conn)
+        except sqlite3.DatabaseError as exc:
+            app.logger.warning("sqlite_fts_integrity_failed reason=%s; force_recreate", exc)
+            drop_sqlite_fts_artifacts(conn)
+            create_sqlite_fts_artifacts(conn)
+            conn.execute("INSERT INTO notes_fts(notes_fts) VALUES ('rebuild')")
+            verify_sqlite_fts_integrity(conn)
         SQLITE_FTS_ACTIVE = True
-    except sqlite3.OperationalError as exc:
+    except (sqlite3.OperationalError, sqlite3.DatabaseError) as exc:
         SQLITE_FTS_ACTIVE = False
         app.logger.warning("sqlite_fts_disabled reason=%s", exc)
+        try:
+            conn.rollback()
+        except sqlite3.Error:
+            pass
+        # If FTS stays unhealthy, remove triggers to avoid write/delete requests failing.
+        try:
+            drop_sqlite_fts_artifacts(conn)
+        except sqlite3.Error as cleanup_exc:
+            app.logger.warning("sqlite_fts_cleanup_failed reason=%s", cleanup_exc)
 
 
 def normalize_category_item(raw):
@@ -1359,10 +1389,22 @@ def storage_delete_note(note_id):
             clear_notes_query_cache()
         return deleted
 
-    with sqlite_connect() as conn:
-        cursor = conn.execute("DELETE FROM notes WHERE id = ?", (note_id,))
-        conn.commit()
-        deleted = cursor.rowcount > 0
+    try:
+        with sqlite_connect() as conn:
+            cursor = conn.execute("DELETE FROM notes WHERE id = ?", (note_id,))
+            conn.commit()
+            deleted = cursor.rowcount > 0
+    except sqlite3.DatabaseError as exc:
+        if "malformed" not in str(exc).lower():
+            raise
+        app.logger.warning("sqlite_delete_malformed note_id=%s reason=%s; retry_after_fts_repair", note_id, exc)
+        with sqlite_connect() as conn:
+            init_sqlite_fts(conn)
+            conn.commit()
+        with sqlite_connect() as conn:
+            cursor = conn.execute("DELETE FROM notes WHERE id = ?", (note_id,))
+            conn.commit()
+            deleted = cursor.rowcount > 0
     if deleted:
         clear_notes_query_cache()
     return deleted
