@@ -1189,6 +1189,46 @@ def storage_add_category(name):
     return new_category
 
 
+def storage_delete_category(category_id):
+    normalized_id = str(category_id or '').strip()
+    if not normalized_id or normalized_id == 'all':
+        return {"deleted": False, "reassigned_notes": 0}
+
+    if APP_STORAGE_BACKEND == 'json':
+        categories = read_json_file(CATEGORIES_FILE)
+        remaining_categories = [c for c in categories if c.get('id') != normalized_id]
+        deleted = len(remaining_categories) != len(categories)
+        if not deleted:
+            return {"deleted": False, "reassigned_notes": 0}
+
+        notes = read_json_file(NOTES_FILE)
+        reassigned_notes = 0
+        for note in notes:
+            if str(note.get('categoryId', '')).strip() == normalized_id:
+                note['categoryId'] = ''
+                reassigned_notes += 1
+
+        write_json_file(CATEGORIES_FILE, remaining_categories)
+        if reassigned_notes > 0:
+            write_json_file(NOTES_FILE, notes)
+        clear_notes_query_cache()
+        return {"deleted": True, "reassigned_notes": reassigned_notes}
+
+    with sqlite_connect() as conn:
+        cursor = conn.execute("DELETE FROM categories WHERE id = ?", (normalized_id,))
+        deleted = cursor.rowcount > 0
+        if not deleted:
+            return {"deleted": False, "reassigned_notes": 0}
+        notes_cursor = conn.execute(
+            "UPDATE notes SET category_id = '' WHERE category_id = ?",
+            (normalized_id,)
+        )
+        reassigned_notes = int(notes_cursor.rowcount or 0)
+        conn.commit()
+    clear_notes_query_cache()
+    return {"deleted": True, "reassigned_notes": reassigned_notes}
+
+
 def storage_get_notes(category_id='all', search_key='', limit=None, offset=0):
     cache_key = build_notes_query_cache_key(category_id, search_key, limit, offset)
     cached_notes = get_notes_query_cache(cache_key)
@@ -1975,6 +2015,33 @@ def add_category():
         category_name=new_category.get('name')
     )
     return jsonify(new_category), 201
+
+
+@app.route('/api/categories/<category_id>', methods=['DELETE'])
+def delete_category(category_id):
+    normalized_id = str(category_id or '').strip()
+    if not normalized_id or normalized_id == 'all':
+        audit_log(logging.WARNING, "category_delete_invalid_id", category_id=normalized_id)
+        return jsonify({"error": "分类ID无效"}), 400
+
+    result = storage_delete_category(normalized_id)
+    if not result.get("deleted"):
+        audit_log(logging.WARNING, "category_delete_not_found", category_id=normalized_id)
+        return jsonify({"error": "分类不存在"}), 404
+
+    reassigned_notes = int(result.get("reassigned_notes", 0))
+    audit_log(
+        logging.INFO,
+        "category_delete_success",
+        category_id=normalized_id,
+        reassigned_notes=reassigned_notes
+    )
+    return jsonify({
+        "success": True,
+        "categoryId": normalized_id,
+        "reassignedNotes": reassigned_notes
+    }), 200
+
 
 # ------------------- 接口：笔记管理 -------------------
 # 获取所有笔记（支持分类/搜索筛选）

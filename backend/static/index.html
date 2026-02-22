@@ -24,9 +24,12 @@
         .brand-box {width:100%;margin-bottom:12px;padding:8px 10px;background:var(--primary);color:#fff;border:1px solid var(--primary);border-radius:var(--radius);font-size:18px;font-weight:600;text-align:center;outline:none;}
         .brand-box::placeholder {color:#fff;}
         .sidebar h2 {font-size:14px;font-weight:600;margin-bottom:12px;color:var(--muted);}
-        .category-item {padding:8px 10px;border-radius:var(--radius);margin-bottom:6px;cursor:pointer;color:var(--muted);transition:all 0.15s;font-size:12px;border:1px solid transparent;}
+        .category-item {padding:8px 10px;border-radius:var(--radius);margin-bottom:6px;cursor:pointer;color:var(--muted);transition:all 0.15s;font-size:14px;border:1px solid transparent;display:flex;align-items:center;gap:8px;}
         .category-item:hover {background:#fbfcfd;color:#4b5563;}
         .category-item.active {background:var(--primary-soft);color:var(--primary);border-color:#dbe4ef;}
+        .category-name {flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:600;}
+        .category-delete-btn {border:1px solid #e2e5ea;background:#f4f6f8;color:#7f8792;font-size:10px;line-height:1;padding:2px 5px;border-radius:999px;cursor:pointer;flex-shrink:0;}
+        .category-delete-btn:hover {background:#eceff3;color:#6f7782;}
         .add-category {display:flex;flex-direction:column;gap:8px;margin-bottom:16px;}
         .add-category input {width:100%;min-width:0;padding:8px 10px;border:1px solid var(--line);border-radius:var(--radius);outline:none;background:#fff;}
         .add-category input:focus {border-color:var(--primary);}
@@ -565,17 +568,40 @@
 
                 const list = document.getElementById('category-list');
                 const currentCateId = document.getElementById('current-category-id').value || 'all';
-                list.innerHTML = '<li class="category-item" data-id="all">全部笔记</li>';
+                list.innerHTML = '';
 
-                const allItem = list.querySelector('.category-item[data-id="all"]');
+                const allItem = document.createElement('li');
+                allItem.className = 'category-item';
+                allItem.dataset.id = 'all';
+                const allName = document.createElement('span');
+                allName.className = 'category-name';
+                allName.textContent = '全部笔记';
+                allItem.appendChild(allName);
                 allItem.classList.toggle('active', currentCateId === 'all');
                 allItem.onclick = () => selectCategory('all');
+                list.appendChild(allItem);
 
                 categoriesCache.forEach(cate => {
                     const li = document.createElement('li');
                     li.className = `category-item${currentCateId === cate.id ? ' active' : ''}`;
                     li.dataset.id = cate.id;
-                    li.textContent = cate.name;
+
+                    const nameSpan = document.createElement('span');
+                    nameSpan.className = 'category-name';
+                    nameSpan.textContent = cate.name;
+                    li.appendChild(nameSpan);
+
+                    const deleteBtn = document.createElement('button');
+                    deleteBtn.type = 'button';
+                    deleteBtn.className = 'category-delete-btn';
+                    deleteBtn.textContent = '删除';
+                    deleteBtn.title = `删除分类 ${cate.name}`;
+                    deleteBtn.onclick = (event) => {
+                        event.stopPropagation();
+                        deleteCategory(cate.id, cate.name);
+                    };
+                    li.appendChild(deleteBtn);
+
                     li.onclick = () => selectCategory(cate.id);
                     list.appendChild(li);
                 });
@@ -588,7 +614,7 @@
                 console.error('加载分类失败:', e);
                 categoriesCache = [];
                 fillEditorCategoryOptions();
-                document.getElementById('category-list').innerHTML = '<li class="category-item active" data-id="all">全部笔记</li><li class="empty-state">加载分类失败</li>';
+                document.getElementById('category-list').innerHTML = '<li class="category-item active" data-id="all"><span class="category-name">全部笔记</span></li><li class="empty-state">加载分类失败</li>';
             }
         }
 
@@ -612,6 +638,37 @@
                 }
             } catch (e) {
                 alert('添加分类失败，请检查后端服务');
+            }
+        }
+
+        async function deleteCategory(categoryId, categoryName) {
+            if (!categoryId || categoryId === 'all') return;
+            if (!confirm(`确定删除分类“${categoryName}”吗？该分类下笔记将自动归为“未分类”。`)) {
+                return;
+            }
+            try {
+                const res = await apiFetch(`/categories/${encodeURIComponent(categoryId)}`, {
+                    method: 'DELETE'
+                });
+                const data = await res.json();
+                if (res.ok) {
+                    if (document.getElementById('current-category-id').value === categoryId) {
+                        document.getElementById('current-category-id').value = 'all';
+                    }
+                    clearNotesCache();
+                    await renderCategories();
+                    await renderNotes();
+                    const moved = Number(data.reassignedNotes || 0);
+                    if (moved > 0) {
+                        alert(`分类删除成功，${moved} 条笔记已归为“未分类”。`);
+                    } else {
+                        alert('分类删除成功！');
+                    }
+                } else {
+                    alert(data.error || '删除分类失败');
+                }
+            } catch (e) {
+                alert('删除分类失败，请检查后端服务');
             }
         }
 
