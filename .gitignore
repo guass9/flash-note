@@ -1,0 +1,38 @@
+# Local env and secrets
+.env
+.env.*
+!.env.example
+!.env.template
+*.pem
+*.key
+*.p12
+*.pfx
+
+# Runtime data and backups
+data/
+backups/
+*.db
+*.db-*
+*.sqlite
+*.sqlite3
+
+# Logs
+*.log
+
+# Python cache / test cache
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+
+# Virtual env / packaging artifacts
+.venv/
+venv/
+build/
+dist/
+*.egg-info/
+
+# IDE / OS
+.DS_Store
+.idea/
+.vscode/

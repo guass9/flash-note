@@ -1,0 +1,11 @@
+[Unit]
+Description=Run Shunnian Notes SQLite Optimize Weekly
+
+[Timer]
+OnCalendar=Sun *-*-* 04:10:00
+RandomizedDelaySec=10m
+Persistent=true
+Unit=flash-note-sqlite-optimize.service
+
+[Install]
+WantedBy=timers.target

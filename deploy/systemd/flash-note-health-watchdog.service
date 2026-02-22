@@ -1,0 +1,11 @@
+[Unit]
+Description=Flash Note health watchdog check
+After=network.target flash-note.service nginx.service
+
+[Service]
+Type=oneshot
+User=root
+Group=root
+WorkingDirectory=/root/flash-note
+EnvironmentFile=-/root/flash-note/.env
+ExecStart=/usr/bin/python3 /root/flash-note/scripts/health_watchdog.py

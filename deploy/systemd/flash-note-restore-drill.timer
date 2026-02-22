@@ -1,0 +1,11 @@
+[Unit]
+Description=Run Shunnian Notes Restore Drill Monthly
+
+[Timer]
+OnCalendar=monthly
+RandomizedDelaySec=30m
+Persistent=true
+Unit=flash-note-restore-drill.service
+
+[Install]
+WantedBy=timers.target

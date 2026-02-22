@@ -1,0 +1,11 @@
+[Unit]
+Description=Run Shunnian Notes Backup Daily
+
+[Timer]
+OnCalendar=*-*-* 03:20:00
+RandomizedDelaySec=5m
+Persistent=true
+Unit=flash-note-backup.service
+
+[Install]
+WantedBy=timers.target

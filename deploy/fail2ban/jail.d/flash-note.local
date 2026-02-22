@@ -1,0 +1,14 @@
+[DEFAULT]
+ignoreip = 127.0.0.1/8 ::1
+banaction = iptables-multiport
+banaction_allports = iptables-allports
+
+[nginx-flashnote-login]
+enabled = true
+filter = nginx-flashnote-login
+logpath = /var/log/nginx/access.log
+maxretry = 8
+findtime = 600
+bantime = 1800
+port = http,https
+protocol = tcp

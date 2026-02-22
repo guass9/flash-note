@@ -1,0 +1,41 @@
+[Unit]
+Description=Shunnian Notes (Gunicorn)
+After=network.target
+
+[Service]
+Type=simple
+User=flashnote
+Group=flashnote
+WorkingDirectory=/root/flash-note/backend
+EnvironmentFile=-/root/flash-note/.env
+Environment=HOME=/root
+Environment=PYTHONUNBUFFERED=1
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectClock=true
+ProtectControlGroups=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+LockPersonality=true
+RestrictSUIDSGID=true
+RestrictRealtime=true
+RestrictNamespaces=true
+SystemCallArchitectures=native
+MemoryDenyWriteExecute=true
+CapabilityBoundingSet=
+AmbientCapabilities=
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+UMask=0077
+ProtectSystem=strict
+ReadWritePaths=/root/flash-note/data /root/flash-note/backend/app.log
+ExecStart=/usr/bin/python3 -m gunicorn -c /root/flash-note/deploy/gunicorn.conf.py wsgi:app
+ExecReload=/bin/kill -s HUP $MAINPID
+KillSignal=SIGTERM
+TimeoutStopSec=30
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

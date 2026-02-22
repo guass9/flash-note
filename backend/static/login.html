@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>瞬念笔记 - 登录</title>
+    <style>
+        :root {
+            --bg:#0f141b;
+            --card:rgba(18, 25, 35, 0.9);
+            --line:rgba(155, 172, 195, 0.28);
+            --text:#e9eef6;
+            --muted:#9ba8bc;
+            --primary:#5f85b3;
+            --primary-hover:#6f96c5;
+            --danger:#f1a4a4;
+            --radius:8px;
+        }
+        * {margin:0;padding:0;box-sizing:border-box;font-family:"Noto Sans SC","PingFang SC","Microsoft Yahei",sans-serif;}
+        body {
+            min-height:100vh;
+            display:flex;
+            align-items:center;
+            justify-content:center;
+            background:
+                radial-gradient(1200px 620px at 8% -12%, #2a3a50 0%, transparent 56%),
+                radial-gradient(920px 540px at 104% 110%, #1a2738 0%, transparent 62%),
+                linear-gradient(160deg, #10161f 0%, #121b28 48%, #0d1219 100%);
+            color:var(--text);
+            padding:18px;
+        }
+        .login-card {
+            width:min(420px, 100%);
+            background:linear-gradient(162deg, rgba(47, 62, 82, 0.92) 0%, rgba(35, 48, 66, 0.92) 52%, rgba(30, 42, 58, 0.92) 100%);
+            border:1px solid rgba(190, 204, 224, 0.4);
+            border-radius:var(--radius);
+            padding:24px 22px;
+            backdrop-filter: blur(10px);
+            box-shadow:
+                0 22px 48px rgba(4, 8, 14, 0.5),
+                inset 0 1px 0 rgba(255, 255, 255, 0.2),
+                inset 0 -1px 0 rgba(8, 12, 20, 0.32);
+        }
+        .brand {
+            text-align:center;
+            font-size:24px;
+            font-weight:700;
+            letter-spacing:0.08em;
+            color:#edf3fb;
+            margin-bottom:6px;
+        }
+        .subtitle {
+            text-align:center;
+            font-size:13px;
+            color:var(--muted);
+            margin-bottom:18px;
+        }
+        .field {margin-bottom:12px;}
+        .field label {
+            display:block;
+            font-size:12px;
+            color:var(--muted);
+            margin-bottom:6px;
+        }
+        .field input {
+            width:100%;
+            border:1px solid var(--line);
+            border-radius:6px;
+            padding:10px 12px;
+            font-size:14px;
+            outline:none;
+            background:rgba(13, 19, 27, 0.92);
+            color:var(--text);
+        }
+        .field input::placeholder {color:#8796ac;}
+        .field input:focus {
+            border-color:var(--primary);
+            box-shadow:0 0 0 3px rgba(95, 133, 179, 0.2);
+        }
+        .error-tip {
+            min-height:20px;
+            color:var(--danger);
+            font-size:12px;
+            margin-bottom:8px;
+        }
+        .login-btn {
+            width:100%;
+            border:none;
+            border-radius:6px;
+            padding:10px 12px;
+            font-size:14px;
+            color:#fff;
+            background:linear-gradient(180deg, #6d93c1 0%, #557ba8 100%);
+            cursor:pointer;
+        }
+        .login-btn:hover {background:linear-gradient(180deg, #7aa2d2 0%, #628ab9 100%);}
+        .login-btn:disabled {
+            cursor:not-allowed;
+            opacity:0.7;
+        }
+    </style>
+</head>
+<body>
+    <main class="login-card">
+        <h1 class="brand">瞬念笔记</h1>
+        <p class="subtitle">请输入用户名和密码登录</p>
+        <form id="login-form">
+            <div class="field">
+                <label for="username">用户名</label>
+                <input id="username" name="username" type="text" autocomplete="username" required>
+            </div>
+            <div class="field">
+                <label for="password">密码</label>
+                <input id="password" name="password" type="password" autocomplete="current-password" required>
+            </div>
+            <div id="error-tip" class="error-tip"></div>
+            <button id="login-btn" class="login-btn" type="submit">登录</button>
+        </form>
+    </main>
+    <script>
+        const API_BASE = `${window.location.origin}/api`;
+
+        async function checkLoggedIn() {
+            try {
+                const res = await fetch(`${API_BASE}/auth/status`);
+                if (!res.ok) return;
+                const data = await res.json();
+                if (data && data.loggedIn) {
+                    window.location.href = '/';
+                }
+            } catch (err) {
+                // 网络异常时允许继续输入登录信息
+            }
+        }
+
+        function setError(message) {
+            document.getElementById('error-tip').textContent = message || '';
+        }
+
+        async function handleLogin(event) {
+            event.preventDefault();
+            setError('');
+
+            const username = document.getElementById('username').value.trim();
+            const password = document.getElementById('password').value;
+            const button = document.getElementById('login-btn');
+
+            if (!username || !password) {
+                setError('请输入用户名和密码');
+                return;
+            }
+
+            button.disabled = true;
+            button.textContent = '登录中...';
+            try {
+                const res = await fetch(`${API_BASE}/auth/login`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({username, password})
+                });
+                const data = await res.json().catch(() => ({}));
+                if (res.ok) {
+                    window.location.href = '/';
+                    return;
+                }
+                setError(data.error || '登录失败，请重试');
+            } catch (err) {
+                setError('登录失败，请检查服务是否可用');
+            } finally {
+                button.disabled = false;
+                button.textContent = '登录';
+            }
+        }
+
+        document.getElementById('login-form').addEventListener('submit', handleLogin);
+        document.getElementById('username').focus();
+        checkLoggedIn();
+    </script>
+</body>
+</html>

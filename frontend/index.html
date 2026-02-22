@@ -1,0 +1,840 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>瞬念笔记</title>
+    <style>
+        :root {
+            --bg:#f7f7f8;
+            --card:#ffffff;
+            --text:#2f3742;
+            --muted:#7a828d;
+            --line:#eceff3;
+            --primary:#4f6f97;
+            --primary-soft:#f3f6fa;
+            --success:#4b8b78;
+            --danger:#b96a6a;
+            --radius:5px;
+        }
+        * {margin:0;padding:0;box-sizing:border-box;font-family:"Noto Sans SC","PingFang SC","Microsoft Yahei",sans-serif;}
+        body {background:var(--bg);color:var(--text);padding:14px;font-size:13px;}
+        .container {max-width:1500px;margin:0 auto;display:grid;grid-template-columns:144px 228px 1fr;gap:14px;align-items:start;}
+        .sidebar {background:var(--card);border-radius:var(--radius);border:1px solid var(--line);padding:16px;height:calc(100vh - 32px);position:sticky;top:16px;display:flex;flex-direction:column;min-height:0;}
+        .brand-box {width:100%;margin-bottom:12px;padding:8px 10px;background:var(--primary);color:#fff;border:1px solid var(--primary);border-radius:var(--radius);font-size:18px;font-weight:600;text-align:center;outline:none;}
+        .brand-box::placeholder {color:#fff;}
+        .sidebar h2 {font-size:14px;font-weight:600;margin-bottom:12px;color:var(--muted);}
+        .category-item {padding:8px 10px;border-radius:var(--radius);margin-bottom:6px;cursor:pointer;color:var(--muted);transition:all 0.15s;font-size:12px;border:1px solid transparent;}
+        .category-item:hover {background:#fbfcfd;color:#4b5563;}
+        .category-item.active {background:var(--primary-soft);color:var(--primary);border-color:#dbe4ef;}
+        .add-category {display:flex;flex-direction:column;gap:8px;margin-bottom:16px;}
+        .add-category input {width:100%;min-width:0;padding:8px 10px;border:1px solid var(--line);border-radius:var(--radius);outline:none;background:#fff;}
+        .add-category input:focus {border-color:var(--primary);}
+        .add-category button {width:100%;padding:8px 10px;background:var(--primary);color:#fff;border:none;border-radius:var(--radius);cursor:pointer;font-size:13px;}
+        .category-list {list-style:none;overflow:auto;min-height:0;flex:1;}
+        .sidebar-footer {padding-top:10px;margin-top:10px;border-top:1px solid var(--line);}
+        .logout-btn {width:100%;padding:8px 10px;border:1px solid #e3e8ee;background:#f8fafc;color:#4b5563;border-radius:var(--radius);cursor:pointer;font-size:13px;}
+        .logout-btn:hover {background:#f2f5f9;color:#374151;}
+
+        .search-panel {background:var(--card);border-radius:var(--radius);border:1px solid var(--line);height:calc(100vh - 32px);position:sticky;top:16px;display:flex;flex-direction:column;overflow:hidden;}
+        .search-bar {padding:12px;border-bottom:1px solid var(--line);}
+        .search-bar input {width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:var(--radius);outline:none;font-size:14px;}
+        .search-bar input:focus {border-color:var(--primary);}
+
+        .note-list {padding:12px;overflow:auto;flex:1;}
+        .note-list h3 {font-size:15px;margin-bottom:10px;color:var(--text);}
+
+        .note-editor {background:var(--card);padding:16px;border-radius:var(--radius);border:1px solid var(--line);height:calc(100vh - 32px);position:sticky;top:16px;overflow:auto;}
+        .write-note-btn {display:inline-block;background:var(--primary);color:#fff;border:none;border-radius:var(--radius);padding:9px 14px;font-size:13px;cursor:pointer;margin-bottom:12px;}
+        .write-note-btn:hover {background:#456589;}
+        .editor-home {min-height:calc(100% - 52px);display:flex;align-items:center;justify-content:center;padding:40px 28px;}
+        .editor-home-content {width:min(780px,100%);padding:10px 8px 4px;}
+        .editor-home-title {max-width:26ch;margin:0 auto;font-family:"Noto Serif SC","Source Han Serif SC","Songti SC",serif;font-size:40px;line-height:1.52;font-weight:700;letter-spacing:0.06em;color:#243140;text-align:center;text-wrap:balance;}
+        .editor-home-sign {margin-top:14px;text-align:right;font-size:11px;letter-spacing:0.18em;color:#9aa4b2;font-weight:500;font-style:italic;}
+        .editor-form.hidden {display:none;}
+        .editor-header {display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;gap:8px;}
+        .editor-btn {padding:7px 12px;border:none;border-radius:var(--radius);cursor:pointer;font-size:13px;}
+        .save-btn {background:var(--success);color:#fff;}
+        .delete-btn {background:var(--danger);color:#fff;}
+        .note-title {width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:var(--radius);margin-bottom:12px;font-size:15px;outline:none;}
+        .note-title:focus {border-color:var(--primary);}
+        .editor-fields {display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;}
+        .editor-fields label {display:block;font-size:12px;color:var(--muted);margin-bottom:6px;}
+        .editor-fields select,
+        .editor-fields input {width:100%;padding:9px 10px;border:1px solid var(--line);border-radius:var(--radius);outline:none;}
+        .editor-fields select:focus,
+        .editor-fields input:focus {border-color:var(--primary);}
+        .note-content {width:100%;height:200px;padding:10px;border:1px solid var(--line);border-radius:var(--radius);resize:vertical;outline:none;font-size:14px;line-height:1.6;font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;margin-bottom:12px;}
+        .note-content:focus {border-color:var(--primary);}
+        .md-toolbar {display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;padding:9px 10px;border:1px solid var(--line);border-radius:var(--radius);background:#f9fafb;margin-bottom:12px;}
+        .mode-switch {display:flex;gap:8px;}
+        .mode-btn {padding:6px 10px;border:1px solid var(--line);background:#fff;border-radius:var(--radius);cursor:pointer;font-size:12px;color:var(--muted);}
+        .mode-btn.active {background:var(--primary);color:#fff;border-color:var(--primary);}
+        .template-tools {display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
+        .tool-label {font-size:12px;color:var(--muted);}
+        .template-btn {padding:5px 8px;border:1px solid var(--line);background:#fff;border-radius:var(--radius);cursor:pointer;font-size:12px;color:var(--muted);}
+        .template-btn:hover,.mode-btn:hover {background:#f6f8fb;color:#5f7697;}
+        .hidden-panel {display:none;}
+        .preview-title {font-size:12px;color:var(--muted);margin-bottom:8px;}
+        .markdown-preview {border:1px solid var(--line);border-radius:var(--radius);padding:12px;background:#fdfdfd;min-height:180px;color:var(--text);line-height:1.65;overflow:auto;}
+        .markdown-preview h1,.markdown-preview h2,.markdown-preview h3,.markdown-preview h4 {margin:10px 0 8px;}
+        .markdown-preview p {margin:8px 0;}
+        .markdown-preview ul,.markdown-preview ol {padding-left:20px;margin:8px 0;}
+        .markdown-preview blockquote {border-left:2px solid #dbe4ef;padding-left:10px;color:var(--muted);margin:8px 0;}
+        .markdown-preview pre {background:#f3f5f7;color:#334155;padding:10px;border-radius:var(--radius);overflow:auto;border:1px solid #e8edf2;}
+        .markdown-preview code {background:#f4f6f8;padding:2px 4px;border-radius:4px;font-size:12px;}
+        .markdown-preview pre code {background:transparent;padding:0;}
+        .note-card {padding:12px;border-bottom:1px solid var(--line);cursor:pointer;transition:background 0.2s;}
+        .note-card:hover {background:#fbfcfd;}
+        .note-card h4 {font-size:14px;font-weight:600;margin-bottom:6px;color:var(--text);}
+        .note-card p {color:var(--muted);font-size:13px;line-height:1.5;display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;overflow:hidden;}
+        .note-card .meta {margin-top:6px;font-size:11px;color:#9ca3af;display:flex;justify-content:space-between;gap:8px;}
+        .tag-list {margin-top:6px;display:flex;flex-wrap:wrap;gap:4px;}
+        .tag-item {font-size:11px;padding:1px 6px;border-radius:999px;background:#f7f8fa;color:#8a93a0;border:1px solid #eef1f4;}
+        .empty-state {text-align:center;padding:24px 0;color:#9ca3af;font-size:13px;}
+        .loading {text-align:center;padding:16px;color:var(--muted);font-size:13px;}
+        .load-more-wrap {display:none;padding:10px 0 2px;text-align:center;}
+        .load-more-btn {padding:7px 12px;border:1px solid var(--line);background:#fff;color:var(--muted);border-radius:var(--radius);cursor:pointer;font-size:12px;}
+        .load-more-btn:hover {background:#f6f8fb;color:#4f6f97;}
+        .load-more-btn:disabled {opacity:0.65;cursor:not-allowed;}
+
+        @media (max-width: 1360px) {
+            .container {grid-template-columns:132px 204px 1fr;}
+        }
+
+        @media (max-width: 960px) {
+            body {padding:12px;}
+            .container {grid-template-columns:1fr;}
+            .sidebar,
+            .search-panel,
+            .note-editor {height:auto;position:static;}
+            .editor-header {flex-direction:column;align-items:flex-start;}
+            .editor-fields {grid-template-columns:1fr;}
+            .editor-home {padding:24px 14px;}
+            .editor-home-title {font-size:30px;}
+            .editor-home-sign {font-size:10px;}
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="sidebar">
+            <input type="text" class="brand-box" value="瞬念笔记" readonly>
+            <h2>笔记分类</h2>
+            <div class="add-category">
+                <input type="text" id="new-category" placeholder="新增分类">
+                <button onclick="addCategory()">添加</button>
+            </div>
+            <ul class="category-list" id="category-list">
+                <li class="category-item active" data-id="all">全部笔记</li>
+            </ul>
+            <div class="sidebar-footer">
+                <button class="logout-btn" onclick="logout()">退出</button>
+            </div>
+        </div>
+        <div class="search-panel">
+            <div class="search-bar">
+                <input type="text" id="search-input" placeholder="搜索笔记标题/内容/标签...">
+            </div>
+            <div class="note-list">
+                <h3 id="note-list-title">近期笔记（5条）</h3>
+                <div id="note-list-container">
+                    <div class="loading">加载中...</div>
+                </div>
+                <div class="load-more-wrap" id="load-more-wrap">
+                    <button class="load-more-btn" id="load-more-btn" onclick="loadMoreNotes()">加载更多</button>
+                </div>
+            </div>
+        </div>
+        <div class="note-editor">
+            <button class="write-note-btn" onclick="showEditorForm(true)">写笔记</button>
+            <div id="editor-home" class="editor-home">
+                <div class="editor-home-content">
+                    <div class="editor-home-title">记录生命中值得记录的每一瞬间</div>
+                    <div class="editor-home-sign">Guass</div>
+                </div>
+            </div>
+            <div id="editor-form" class="editor-form hidden">
+                <div class="editor-header">
+                    <h3>编辑笔记</h3>
+                    <div class="editor-actions">
+                        <button class="editor-btn save-btn" onclick="saveNote()">保存笔记</button>
+                        <button class="editor-btn delete-btn" onclick="deleteNote()">删除笔记</button>
+                    </div>
+                </div>
+                <input type="text" class="note-title" id="note-title" placeholder="请输入笔记标题">
+
+                <div class="editor-fields">
+                    <div>
+                        <label for="note-category-select">笔记分类</label>
+                        <select id="note-category-select">
+                            <option value="">未分类</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label for="note-tags">标签（用逗号分隔）</label>
+                        <input type="text" id="note-tags" placeholder="例如：项目A, 会议, 待办">
+                    </div>
+                </div>
+
+                <div class="md-toolbar">
+                    <div class="mode-switch">
+                        <button type="button" class="mode-btn active" id="mode-source-btn" onclick="setEditorMode('source')">源码</button>
+                        <button type="button" class="mode-btn" id="mode-preview-btn" onclick="setEditorMode('preview')">预览</button>
+                    </div>
+                    <div class="template-tools">
+                        <span class="tool-label">插入模板</span>
+                        <button type="button" class="template-btn" onclick="insertMarkdownTemplate('title')">标题</button>
+                        <button type="button" class="template-btn" onclick="insertMarkdownTemplate('list')">列表</button>
+                        <button type="button" class="template-btn" onclick="insertMarkdownTemplate('code')">代码块</button>
+                        <button type="button" class="template-btn" onclick="insertMarkdownTemplate('quote')">引用</button>
+                        <button type="button" class="template-btn" onclick="insertMarkdownTemplate('link')">链接</button>
+                    </div>
+                </div>
+                <div id="markdown-source-panel">
+                    <textarea class="note-content" id="note-content" placeholder="请输入 Markdown 内容（例如 # 标题、**加粗**、- 列表）"></textarea>
+                </div>
+                <div id="markdown-preview-panel" class="hidden-panel">
+                    <div class="preview-title">Markdown 预览</div>
+                    <div class="markdown-preview" id="note-content-preview"></div>
+                </div>
+            </div>
+
+            <input type="hidden" id="current-note-id">
+            <input type="hidden" id="current-category-id" value="all">
+        </div>
+    </div>
+    <script src="/static/vendor/marked.min.js"></script>
+    <script src="/static/vendor/purify.min.js"></script>
+    <script>
+        const API_BASE = `${window.location.origin}/api`;
+
+        let categoriesCache = [];
+        let editorMode = 'source';
+        let searchDebounceTimer = null;
+        const SEARCH_INPUT_DEBOUNCE_MS = 250;
+        const SEARCH_PAGE_SIZE = 20;
+        let searchOffset = 0;
+        let searchHasMore = false;
+        let searchLoadingMore = false;
+        let activeNotesController = null;
+        let notesRequestSerial = 0;
+        const NOTES_CACHE_TTL_MS = 15000;
+        const NOTES_CACHE_MAX_ENTRIES = 80;
+        const notesQueryCache = new Map();
+        const ACTIVITY_PING_INTERVAL_MS = 60000;
+        const ACTIVITY_EVENTS = ['pointerdown', 'keydown', 'touchstart', 'scroll'];
+        let lastActivityPingMs = 0;
+        let activityPingInFlight = false;
+
+        async function apiFetch(path, options) {
+            const res = await fetch(`${API_BASE}${path}`, options);
+            if (res.status === 401) {
+                window.location.href = '/login';
+                throw new Error('UNAUTHORIZED');
+            }
+            return res;
+        }
+
+        async function pingSessionActivity() {
+            const nowMs = Date.now();
+            if (activityPingInFlight) return;
+            if (nowMs - lastActivityPingMs < ACTIVITY_PING_INTERVAL_MS) return;
+
+            activityPingInFlight = true;
+            try {
+                await apiFetch('/auth/status');
+                lastActivityPingMs = Date.now();
+            } catch (e) {
+                // apiFetch 已处理 401 跳转，这里无需额外处理
+            } finally {
+                activityPingInFlight = false;
+            }
+        }
+
+        function setupActivityHeartbeat() {
+            const onActivity = () => {
+                pingSessionActivity();
+            };
+            ACTIVITY_EVENTS.forEach(eventName => {
+                window.addEventListener(eventName, onActivity, {passive: true});
+            });
+            lastActivityPingMs = Date.now();
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text || '';
+            return div.innerHTML;
+        }
+
+        function stripHtml(input) {
+            const div = document.createElement('div');
+            div.innerHTML = input || '';
+            return (div.textContent || div.innerText || '').replace(/\s+/g, ' ').trim();
+        }
+
+        function plainTextToRichHtml(text) {
+            if (!text) return '';
+            return escapeHtml(text).replace(/\n/g, '<br>');
+        }
+
+        function basicMarkdownToHtml(markdownText) {
+            let source = (markdownText || '').replace(/\r\n/g, '\n');
+            if (!source.trim()) return '';
+
+            const codeBlocks = [];
+            source = source.replace(/```[\w-]*\n([\s\S]*?)```/g, function(_, code) {
+                const token = `@@CODEBLOCK_${codeBlocks.length}@@`;
+                codeBlocks.push(`<pre><code>${escapeHtml(code)}</code></pre>`);
+                return token;
+            });
+
+            source = escapeHtml(source);
+
+            source = source.replace(/^######\s+(.+)$/gm, '<h6>$1</h6>');
+            source = source.replace(/^#####\s+(.+)$/gm, '<h5>$1</h5>');
+            source = source.replace(/^####\s+(.+)$/gm, '<h4>$1</h4>');
+            source = source.replace(/^###\s+(.+)$/gm, '<h3>$1</h3>');
+            source = source.replace(/^##\s+(.+)$/gm, '<h2>$1</h2>');
+            source = source.replace(/^#\s+(.+)$/gm, '<h1>$1</h1>');
+
+            source = source.replace(/^>\s?(.+)$/gm, '<blockquote>$1</blockquote>');
+
+            source = source.replace(/(?:^|\n)((?:[-*+]\s+.+(?:\n|$))+)/g, function(_, block) {
+                const items = block.trim().split('\n').map(function(line) {
+                    return `<li>${line.replace(/^[-*+]\s+/, '')}</li>`;
+                }).join('');
+                return `\n<ul>${items}</ul>\n`;
+            });
+
+            source = source.replace(/(?:^|\n)((?:\d+\.\s+.+(?:\n|$))+)/g, function(_, block) {
+                const items = block.trim().split('\n').map(function(line) {
+                    return `<li>${line.replace(/^\d+\.\s+/, '')}</li>`;
+                }).join('');
+                return `\n<ol>${items}</ol>\n`;
+            });
+
+            source = source.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+            source = source.replace(/__(.+?)__/g, '<strong>$1</strong>');
+            source = source.replace(/\*(.+?)\*/g, '<em>$1</em>');
+            source = source.replace(/_(.+?)_/g, '<em>$1</em>');
+            source = source.replace(/~~(.+?)~~/g, '<del>$1</del>');
+            source = source.replace(/`([^`\n]+)`/g, '<code>$1</code>');
+            source = source.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
+
+            source = source.replace(/@@CODEBLOCK_(\d+)@@/g, function(_, idx) {
+                return codeBlocks[Number(idx)] || '';
+            });
+
+            const chunks = source.split(/\n{2,}/).map(function(item) { return item.trim(); }).filter(Boolean);
+            const htmlChunks = chunks.map(function(chunk) {
+                if (/^<(h[1-6]|ul|ol|blockquote|pre)/.test(chunk)) {
+                    return chunk;
+                }
+                return `<p>${chunk.replace(/\n/g, '<br>')}</p>`;
+            });
+            return htmlChunks.join('\n');
+        }
+
+        function markdownToHtml(markdownText) {
+            const source = markdownText || '';
+            if (!source.trim()) return '';
+            let rawHtml = '';
+            if (window.marked && typeof window.marked.parse === 'function') {
+                rawHtml = window.marked.parse(source);
+            } else {
+                rawHtml = basicMarkdownToHtml(source);
+            }
+            if (window.DOMPurify && typeof window.DOMPurify.sanitize === 'function') {
+                return window.DOMPurify.sanitize(rawHtml);
+            }
+            return rawHtml;
+        }
+
+        function markdownToPlainText(markdownText) {
+            const div = document.createElement('div');
+            div.innerHTML = markdownToHtml(markdownText);
+            return (div.textContent || div.innerText || '').replace(/\s+/g, ' ').trim();
+        }
+
+        function updateMarkdownPreview() {
+            const markdownText = document.getElementById('note-content').value || '';
+            const preview = document.getElementById('note-content-preview');
+            const rendered = markdownToHtml(markdownText);
+            preview.innerHTML = rendered || '<span style="color:#9ca3af;">Markdown 预览将显示在这里</span>';
+        }
+
+        function setEditorMode(mode) {
+            editorMode = mode === 'preview' ? 'preview' : 'source';
+            const sourcePanel = document.getElementById('markdown-source-panel');
+            const previewPanel = document.getElementById('markdown-preview-panel');
+            const sourceBtn = document.getElementById('mode-source-btn');
+            const previewBtn = document.getElementById('mode-preview-btn');
+
+            const previewMode = editorMode === 'preview';
+            sourcePanel.classList.toggle('hidden-panel', previewMode);
+            previewPanel.classList.toggle('hidden-panel', !previewMode);
+            sourceBtn.classList.toggle('active', !previewMode);
+            previewBtn.classList.toggle('active', previewMode);
+
+            if (previewMode) {
+                updateMarkdownPreview();
+            } else {
+                document.getElementById('note-content').focus();
+            }
+        }
+
+        function insertAtCursor(inputEl, text) {
+            const start = inputEl.selectionStart ?? inputEl.value.length;
+            const end = inputEl.selectionEnd ?? inputEl.value.length;
+            inputEl.value = inputEl.value.slice(0, start) + text + inputEl.value.slice(end);
+            const nextPos = start + text.length;
+            inputEl.selectionStart = nextPos;
+            inputEl.selectionEnd = nextPos;
+        }
+
+        function insertMarkdownTemplate(type) {
+            const templates = {
+                title: '## 二级标题\n',
+                list: '- 列表项 1\n- 列表项 2\n',
+                code: '```python\nprint(\"hello markdown\")\n```\n',
+                quote: '> 这里是一段引用\n',
+                link: '[链接文字](https://example.com)\n'
+            };
+            const textarea = document.getElementById('note-content');
+            setEditorMode('source');
+            textarea.focus();
+            insertAtCursor(textarea, templates[type] || '');
+            updateMarkdownPreview();
+        }
+
+        function parseTags(tagsText) {
+            if (!tagsText) return [];
+            const raw = tagsText.split(/[,，\n]+/);
+            const tags = [];
+            const seen = new Set();
+            raw.forEach(item => {
+                const t = item.trim();
+                if (!t) return;
+                const key = t.toLowerCase();
+                if (seen.has(key)) return;
+                seen.add(key);
+                tags.push(t.slice(0, 30));
+            });
+            return tags;
+        }
+
+        function selectCategory(categoryId) {
+            const targetId = categoryId || 'all';
+            document.querySelectorAll('.category-item').forEach(item => {
+                item.classList.toggle('active', item.dataset.id === targetId);
+            });
+            document.getElementById('current-category-id').value = targetId;
+
+            const currentNoteId = document.getElementById('current-note-id').value;
+            if (!currentNoteId) {
+                document.getElementById('note-category-select').value = targetId === 'all' ? '' : targetId;
+            }
+            renderNotes();
+        }
+
+        function getCateName(cateId) {
+            if (!cateId || cateId === 'all') return '未分类';
+            const cate = categoriesCache.find(item => item.id === cateId);
+            return cate ? cate.name : '未分类';
+        }
+
+        function showEditorForm(openForNew) {
+            const home = document.getElementById('editor-home');
+            const form = document.getElementById('editor-form');
+            home.style.display = 'none';
+            form.classList.remove('hidden');
+            if (openForNew) {
+                resetEditor(true);
+                document.getElementById('note-title').focus();
+            }
+        }
+
+        function resetEditor(defaultToFilter) {
+            document.getElementById('note-title').value = '';
+            document.getElementById('note-content').value = '';
+            updateMarkdownPreview();
+            setEditorMode('source');
+            document.getElementById('note-tags').value = '';
+            document.getElementById('current-note-id').value = '';
+            if (defaultToFilter) {
+                const currentFilterCate = document.getElementById('current-category-id').value;
+                document.getElementById('note-category-select').value = currentFilterCate === 'all' ? '' : currentFilterCate;
+            }
+        }
+
+        function fillEditorCategoryOptions() {
+            const select = document.getElementById('note-category-select');
+            const currentValue = select.value;
+            select.innerHTML = '<option value="">未分类</option>';
+            categoriesCache.forEach(cate => {
+                const opt = document.createElement('option');
+                opt.value = cate.id;
+                opt.textContent = cate.name;
+                select.appendChild(opt);
+            });
+
+            if (currentValue && categoriesCache.some(c => c.id === currentValue)) {
+                select.value = currentValue;
+            } else {
+                const currentFilterCate = document.getElementById('current-category-id').value;
+                select.value = currentFilterCate === 'all' ? '' : currentFilterCate;
+            }
+        }
+
+        function scheduleRenderNotes() {
+            if (searchDebounceTimer !== null) {
+                window.clearTimeout(searchDebounceTimer);
+            }
+            searchDebounceTimer = window.setTimeout(() => {
+                searchDebounceTimer = null;
+                renderNotes();
+            }, SEARCH_INPUT_DEBOUNCE_MS);
+        }
+
+        function clearNotesCache() {
+            notesQueryCache.clear();
+        }
+
+        function buildNotesCacheKey(cateId, search, limit, offset) {
+            return `${cateId || 'all'}|${search || ''}|${limit || ''}|${offset || 0}`;
+        }
+
+        function getNotesFromCache(key) {
+            const hit = notesQueryCache.get(key);
+            if (!hit) return null;
+            if ((Date.now() - hit.ts) > NOTES_CACHE_TTL_MS) {
+                notesQueryCache.delete(key);
+                return null;
+            }
+            return hit.data;
+        }
+
+        function setNotesToCache(key, data) {
+            if (notesQueryCache.size >= NOTES_CACHE_MAX_ENTRIES) {
+                const firstKey = notesQueryCache.keys().next().value;
+                if (firstKey !== undefined) notesQueryCache.delete(firstKey);
+            }
+            notesQueryCache.set(key, {ts: Date.now(), data: data});
+        }
+
+        function setLoadMoreState(visible, loading = false) {
+            const wrap = document.getElementById('load-more-wrap');
+            const btn = document.getElementById('load-more-btn');
+            wrap.style.display = visible ? 'block' : 'none';
+            btn.disabled = loading;
+            btn.textContent = loading ? '加载中...' : '加载更多';
+        }
+
+        async function loadMoreNotes() {
+            if (searchLoadingMore || !searchHasMore) return;
+            searchLoadingMore = true;
+            setLoadMoreState(true, true);
+            try {
+                await renderNotes({append: true});
+            } finally {
+                searchLoadingMore = false;
+                setLoadMoreState(searchHasMore, false);
+            }
+        }
+
+        window.onload = function() {
+            if (window.marked && typeof window.marked.setOptions === 'function') {
+                window.marked.setOptions({breaks: true, gfm: true});
+            }
+            setupActivityHeartbeat();
+            renderCategories();
+            renderNotes();
+            document.getElementById('search-input').addEventListener('input', scheduleRenderNotes);
+            document.getElementById('note-content').addEventListener('input', updateMarkdownPreview);
+            updateMarkdownPreview();
+            setEditorMode('source');
+        };
+
+        async function renderCategories() {
+            try {
+                const res = await apiFetch('/categories');
+                const categories = await res.json();
+                categoriesCache = Array.isArray(categories) ? categories : [];
+
+                const list = document.getElementById('category-list');
+                const currentCateId = document.getElementById('current-category-id').value || 'all';
+                list.innerHTML = '<li class="category-item" data-id="all">全部笔记</li>';
+
+                const allItem = list.querySelector('.category-item[data-id="all"]');
+                allItem.classList.toggle('active', currentCateId === 'all');
+                allItem.onclick = () => selectCategory('all');
+
+                categoriesCache.forEach(cate => {
+                    const li = document.createElement('li');
+                    li.className = `category-item${currentCateId === cate.id ? ' active' : ''}`;
+                    li.dataset.id = cate.id;
+                    li.textContent = cate.name;
+                    li.onclick = () => selectCategory(cate.id);
+                    list.appendChild(li);
+                });
+
+                if (currentCateId !== 'all' && !categoriesCache.some(cate => cate.id === currentCateId)) {
+                    selectCategory('all');
+                }
+                fillEditorCategoryOptions();
+            } catch (e) {
+                console.error('加载分类失败:', e);
+                categoriesCache = [];
+                fillEditorCategoryOptions();
+                document.getElementById('category-list').innerHTML = '<li class="category-item active" data-id="all">全部笔记</li><li class="empty-state">加载分类失败</li>';
+            }
+        }
+
+        async function addCategory() {
+            const name = document.getElementById('new-category').value.trim();
+            if (!name) {alert('请输入分类名称！');return;}
+            try {
+                const res = await apiFetch('/categories', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({name: name})
+                });
+                const data = await res.json();
+                if (res.ok) {
+                    document.getElementById('new-category').value = '';
+                    clearNotesCache();
+                    await renderCategories();
+                    alert('分类添加成功！');
+                } else {
+                    alert(data.error || '添加分类失败');
+                }
+            } catch (e) {
+                alert('添加分类失败，请检查后端服务');
+            }
+        }
+
+        async function renderNotes(options = {}) {
+            const append = !!options.append;
+            const currentSerial = ++notesRequestSerial;
+            const container = document.getElementById('note-list-container');
+            const titleEl = document.getElementById('note-list-title');
+            const search = document.getElementById('search-input').value.trim();
+            const cateId = document.getElementById('current-category-id').value;
+            const isSearchMode = !!search;
+            if (activeNotesController) {
+                activeNotesController.abort();
+            }
+            const controller = new AbortController();
+            activeNotesController = controller;
+
+            if (!append) {
+                searchOffset = 0;
+                container.innerHTML = '<div class="loading">加载中...</div>';
+                setLoadMoreState(false);
+            } else {
+                setLoadMoreState(true, true);
+            }
+            try {
+                const params = new URLSearchParams();
+                let queryLimit = '';
+                let queryOffset = 0;
+                if (cateId) params.append('category_id', cateId);
+                if (isSearchMode) {
+                    params.append('search', search);
+                    queryLimit = String(SEARCH_PAGE_SIZE);
+                    queryOffset = searchOffset > 0 ? searchOffset : 0;
+                    params.append('limit', queryLimit);
+                    if (queryOffset > 0) params.append('offset', String(queryOffset));
+                } else {
+                    queryLimit = '5';
+                    queryOffset = 0;
+                    params.append('limit', queryLimit);
+                }
+                const cacheKey = buildNotesCacheKey(cateId, search, queryLimit, queryOffset);
+                let notes = getNotesFromCache(cacheKey);
+                if (!notes) {
+                    const res = await apiFetch(`/notes?${params.toString()}`, {signal: controller.signal});
+                    notes = await res.json();
+                    if (Array.isArray(notes)) {
+                        setNotesToCache(cacheKey, notes);
+                    }
+                }
+                if (currentSerial !== notesRequestSerial) {
+                    return;
+                }
+                const list = Array.isArray(notes) ? notes : [];
+                const displayList = list;
+
+                if (displayList.length === 0) {
+                    if (!append) {
+                        container.innerHTML = isSearchMode
+                            ? '<div class="empty-state">暂无匹配的笔记～</div>'
+                            : '<div class="empty-state">暂无笔记，先创建一条吧～</div>';
+                    }
+                    searchHasMore = false;
+                    setLoadMoreState(false);
+                    titleEl.textContent = isSearchMode ? '搜索结果（0）' : '近期笔记（5条）';
+                    return;
+                }
+
+                if (!append) {
+                    container.innerHTML = '';
+                }
+                displayList.forEach(note => {
+                    const card = document.createElement('div');
+                    card.className = 'note-card';
+
+                    const title = document.createElement('h4');
+                    title.textContent = note.title || '无标题笔记';
+
+                    const preview = document.createElement('p');
+                    const plainPreview = markdownToPlainText(note.content || '');
+                    preview.textContent = plainPreview || stripHtml(note.richContent || '') || '无内容';
+
+                    const tagList = document.createElement('div');
+                    tagList.className = 'tag-list';
+                    (note.tags || []).forEach(tag => {
+                        const tagItem = document.createElement('span');
+                        tagItem.className = 'tag-item';
+                        tagItem.textContent = `#${tag}`;
+                        tagList.appendChild(tagItem);
+                    });
+
+                    const meta = document.createElement('div');
+                    meta.className = 'meta';
+                    const cate = document.createElement('span');
+                    cate.textContent = getCateName(note.categoryId);
+                    const time = document.createElement('span');
+                    const timeVal = note.updateTime || note.createTime;
+                    time.textContent = timeVal ? new Date(timeVal * 1000).toLocaleString('zh-CN') : '';
+                    meta.appendChild(cate);
+                    meta.appendChild(time);
+
+                    card.appendChild(title);
+                    card.appendChild(preview);
+                    if ((note.tags || []).length > 0) card.appendChild(tagList);
+                    card.appendChild(meta);
+                    card.onclick = () => editNote(note);
+                    container.appendChild(card);
+                });
+
+                if (isSearchMode) {
+                    searchOffset = append ? (searchOffset + displayList.length) : displayList.length;
+                    searchHasMore = displayList.length === SEARCH_PAGE_SIZE;
+                    const shownCount = container.querySelectorAll('.note-card').length;
+                    titleEl.textContent = `搜索结果（已显示${shownCount}条）`;
+                    setLoadMoreState(searchHasMore);
+                } else {
+                    searchOffset = 0;
+                    searchHasMore = false;
+                    titleEl.textContent = '近期笔记（5条）';
+                    setLoadMoreState(false);
+                }
+            } catch (e) {
+                if (e && e.name === 'AbortError') {
+                    return;
+                }
+                if (!append) {
+                    container.innerHTML = '<div class="empty-state">加载笔记失败，请检查后端服务</div>';
+                }
+                searchHasMore = false;
+                setLoadMoreState(false);
+            } finally {
+                if (activeNotesController === controller) {
+                    activeNotesController = null;
+                }
+            }
+        }
+
+        function editNote(note) {
+            showEditorForm(false);
+            document.getElementById('note-title').value = note.title || '';
+            document.getElementById('note-tags').value = (note.tags || []).join(', ');
+            document.getElementById('note-category-select').value = note.categoryId || '';
+            document.getElementById('note-content').value = note.content || markdownToPlainText(note.richContent || '');
+            updateMarkdownPreview();
+            setEditorMode('source');
+            document.getElementById('current-note-id').value = note.id;
+            document.querySelector('.note-editor').scrollIntoView({behavior: 'smooth'});
+        }
+
+        async function saveNote() {
+            const title = document.getElementById('note-title').value.trim();
+            const markdownContent = document.getElementById('note-content').value;
+            const noteId = document.getElementById('current-note-id').value;
+            const categoryId = document.getElementById('note-category-select').value;
+            const tags = parseTags(document.getElementById('note-tags').value);
+
+            if (!title && !markdownContent.trim()) {
+                alert('标题和内容不能都为空！');
+                return;
+            }
+
+            const data = {
+                id: noteId,
+                title: title,
+                content: markdownContent,
+                categoryId: categoryId,
+                tags: tags
+            };
+
+            try {
+                const res = await apiFetch('/notes', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(data)
+                });
+                const resData = await res.json();
+                if (res.ok) {
+                    if (!noteId) {
+                        resetEditor(true);
+                    }
+                    clearNotesCache();
+                    renderNotes();
+                    alert('笔记保存成功！');
+                } else {
+                    alert(resData.error || '保存笔记失败');
+                }
+            } catch (e) {
+                alert('保存笔记失败，请检查后端服务');
+            }
+        }
+
+        async function deleteNote() {
+            const noteId = document.getElementById('current-note-id').value;
+            if (!noteId) {
+                alert('请先选择要删除的笔记！');
+                return;
+            }
+
+            if (confirm('确定要删除这条笔记吗？删除后无法恢复！')) {
+                try {
+                    const res = await apiFetch(`/notes/${noteId}`, {method: 'DELETE'});
+                    if (res.ok) {
+                        resetEditor(true);
+                        clearNotesCache();
+                        renderNotes();
+                        alert('笔记删除成功！');
+                    } else {
+                        alert('删除笔记失败');
+                    }
+                } catch (e) {
+                    alert('删除笔记失败，请检查后端服务');
+                }
+            }
+        }
+
+        async function logout() {
+            try {
+                await apiFetch('/auth/logout', {method: 'POST'});
+            } catch (e) {
+                // 即便请求失败，也直接回到登录页
+            } finally {
+                window.location.href = '/login';
+            }
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,11 @@
+[Unit]
+Description=Shunnian Notes Data Lifecycle
+After=network.target flash-note.service
+
+[Service]
+Type=oneshot
+User=root
+Group=root
+WorkingDirectory=/root/flash-note
+EnvironmentFile=-/root/flash-note/.env
+ExecStart=/usr/bin/python3 /root/flash-note/scripts/data_lifecycle.py

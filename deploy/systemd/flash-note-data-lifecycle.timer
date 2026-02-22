@@ -1,0 +1,11 @@
+[Unit]
+Description=Run Shunnian Notes Data Lifecycle Monthly
+
+[Timer]
+OnCalendar=*-*-01 05:20:00
+RandomizedDelaySec=20m
+Persistent=true
+Unit=flash-note-data-lifecycle.service
+
+[Install]
+WantedBy=timers.target

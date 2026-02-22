@@ -1,0 +1,11 @@
+[Unit]
+Description=Run Shunnian Notes SQLite Vacuum Monthly
+
+[Timer]
+OnCalendar=*-*-01 04:40:00
+RandomizedDelaySec=20m
+Persistent=true
+Unit=flash-note-sqlite-vacuum.service
+
+[Install]
+WantedBy=timers.target
